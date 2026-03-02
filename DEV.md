@@ -82,16 +82,38 @@ bun build src/cli.ts --compile --outfile bin/mac-contacts
 - Provider tests with fixture SQLite DB under `src/__tests__/providers`.
 - Avoid tests that mutate a real user Contacts DB.
 
-## Release notes (plan)
+## Release process
 
-- Tag format: `vX.Y.Z`
-- CI should:
-  - install Bun
-  - run `bun install --frozen-lockfile`
-  - run tests
-  - build binary artifact
-  - attach artifact to GitHub Release
+Workflow file: `.github/workflows/release.yml`
 
-Potential post-v1 improvement:
+Trigger:
 
-- build/upload separate `arm64` and `x64` macOS binaries.
+- push a tag matching `v*` (example: `v0.1.0`)
+
+Pipeline behavior:
+
+1. `verify` job on `ubuntu-latest`
+   - `bun install --frozen-lockfile`
+   - `bun test`
+2. `build` matrix on macOS
+   - `macos-13` -> `macos-x64`
+   - `macos-14` -> `macos-arm64`
+   - compiles binary with Bun
+   - packages each binary as `.tar.gz`
+3. `release` job
+   - downloads artifacts
+   - generates `checksums.txt` (SHA-256)
+   - creates/updates GitHub Release for the tag
+   - uploads both tarballs + checksum file
+
+Pre-release behavior:
+
+- tags containing `-` (for example `v0.2.0-rc.1`) are published as GitHub pre-releases.
+
+### Local release flow
+
+```bash
+# make sure main is green and pushed
+git tag v0.1.0
+git push origin v0.1.0
+```
