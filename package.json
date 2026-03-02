@@ -1,0 +1,21 @@
+{
+  "name": "mac-contacts",
+  "module": "src/cli.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "bun run src/cli.ts",
+    "list": "bun run src/cli.ts list",
+    "build": "bun build src/cli.ts --compile --outfile bin/mac-contacts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "commander": "^14.0.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
