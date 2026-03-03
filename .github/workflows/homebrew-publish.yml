@@ -1,0 +1,77 @@
+name: Publish Homebrew Formula
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+env:
+  TAP_REPOSITORY: aashj/contacts
+  TAP_BRANCH: main
+  FORMULA_PATH: Formula/contacts.rb
+  RELEASE_OWNER: aashj
+  RELEASE_REPO: contacts
+
+jobs:
+  publish-homebrew:
+    name: Update Homebrew Formula
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+        with:
+          path: source
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Download checksums from release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_URL: ${{ github.event.release.url }}
+        run: |
+          set -euo pipefail
+          CHECKSUM_ASSET_URL="$(gh api "$RELEASE_URL/assets" --jq '.[] | select(.name == "checksums.txt") | .url')"
+          if [ -z "$CHECKSUM_ASSET_URL" ]; then
+            echo "checksums.txt not found in release assets." >&2
+            exit 1
+          fi
+          gh api "$CHECKSUM_ASSET_URL" -H "Accept: application/octet-stream" > "$RUNNER_TEMP/checksums.txt"
+
+      - name: Checkout tap repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPOSITORY }}
+          ref: ${{ env.TAP_BRANCH }}
+          path: tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN || github.token }}
+
+      - name: Generate formula file
+        working-directory: source
+        run: |
+          set -euo pipefail
+          bun run scripts/generate-homebrew-formula.ts \
+            --owner "${{ env.RELEASE_OWNER }}" \
+            --repo "${{ env.RELEASE_REPO }}" \
+            --tag "${{ github.event.release.tag_name }}" \
+            --checksums "$RUNNER_TEMP/checksums.txt" \
+            --out "$GITHUB_WORKSPACE/tap/${{ env.FORMULA_PATH }}"
+
+      - name: Commit and push formula update
+        working-directory: tap
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ env.FORMULA_PATH }}"
+          if git diff --cached --quiet; then
+            echo "No Homebrew formula changes to commit."
+            exit 0
+          fi
+          git commit -m "homebrew: contacts ${{ github.event.release.tag_name }}"
+          git push origin "${{ env.TAP_BRANCH }}"

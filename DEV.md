@@ -168,3 +168,28 @@ Pre-release behavior:
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+## Homebrew flow
+
+Homebrew formula lives in a separate tap repo (`homebrew-tap`), not this source repo.
+
+Generate/update formula from a release checksum file:
+
+```bash
+bun run homebrew:formula -- \
+  --owner <github-owner> \
+  --repo <repo-name> \
+  --tag v0.1.0 \
+  --checksums /path/to/checksums.txt \
+  --out /path/to/homebrew-tap/Formula/contacts.rb
+```
+
+Script location:
+
+- `scripts/generate-homebrew-formula.ts`
+
+It expects checksums for:
+
+- `contacts-<tag>-macos-arm64.tar.gz`
+- `contacts-<tag>-macos-x64.tar.gz`
+- `contacts-<tag>-linux-x64.tar.gz`

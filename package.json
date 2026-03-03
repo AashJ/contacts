@@ -7,7 +7,8 @@
     "dev": "bun run src/cli.ts",
     "list": "bun run src/cli.ts list",
     "build": "bun build src/cli.ts --compile --outfile bin/contacts",
-    "test": "bun test"
+    "test": "bun test",
+    "homebrew:formula": "bun run scripts/generate-homebrew-formula.ts"
   },
   "dependencies": {
     "commander": "^14.0.3"
