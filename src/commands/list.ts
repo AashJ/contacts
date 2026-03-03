@@ -1,9 +1,9 @@
 import { Command } from "commander";
 import type { Contact, OutputFormat } from "../domain/types";
-import { listContacts } from "../providers/macos-address-book";
+import { createContactsProvider } from "../providers/factory";
 import { writeJson, writeNdjson } from "../output/json";
 import { writeContactsTable } from "../output/table";
-import type { GlobalOptions } from "./types";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 
 interface ListOptions {
   limit?: string;
@@ -13,25 +13,23 @@ interface ListOptions {
 export function registerListCommand(program: Command): void {
   program
     .command("list")
-    .description("List contacts from macOS Contacts")
+    .description("List contacts from the configured backend")
     .option("--limit <number>", "Maximum number of contacts to return")
     .option("--format <format>", "Output format: auto, table, json, ndjson", "auto")
     .action(async (options: ListOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const limit = typeof options.limit === "string" ? parseLimit(options.limit) : undefined;
       const format = parseOutputFormat(options.format);
+      const provider = createContactsProvider(globalOptions);
 
-      const result = await listContacts({
-        limit,
-        sourcePath: globalOptions.source,
-        verbose: globalOptions.verbose,
-      });
+      const result = await provider.listContacts({ limit });
 
       renderContacts(result.contacts, format);
 
       if (globalOptions.verbose) {
         console.error(
-          `[mac-contacts] returned ${result.contacts.length} contact(s) from ${result.sourcePath}`,
+          `[contacts] returned ${result.contacts.length} contact(s) from ${result.sourcePath}`,
         );
       }
     });

@@ -182,7 +182,7 @@ async function resolveSourcePath(sourcePath?: string): Promise<string> {
 
 function logSourcePath(sourcePath: string, verbose?: boolean): void {
   if (verbose) {
-    console.error(`[mac-contacts] using database: ${sourcePath}`);
+    console.error(`[contacts] using database: ${sourcePath}`);
   }
 }
 

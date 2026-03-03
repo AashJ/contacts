@@ -112,7 +112,7 @@ describe("macOS address book provider", () => {
 });
 
 function createFixtureDatabase(): string {
-  const tempDir = mkdtempSync(join(tmpdir(), "mac-contacts-test-"));
+  const tempDir = mkdtempSync(join(tmpdir(), "contacts-test-"));
   tempDirs.push(tempDir);
 
   const dbPath = join(tempDir, "AddressBook-v22.abcddb");

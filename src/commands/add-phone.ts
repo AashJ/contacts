@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import type { TableJsonFormat } from "../domain/types";
-import { addPhoneToContact } from "../providers/macos-contacts-writer";
+import { createContactsProvider } from "../providers/factory";
 import { writeJson } from "../output/json";
-import type { GlobalOptions } from "./types";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 import { parseAddOutputFormat, parseContactIdentifier, parsePhoneValue } from "./add";
 
 interface AddPhoneOptions {
@@ -24,13 +24,15 @@ export function registerAddPhoneCommand(program: Command): void {
     .option("--label <label>", "Phone label, for example: home/work/mobile")
     .option("--format <format>", "Output format: table or json", "table")
     .action(async (contactId: string, phone: string, options: AddPhoneOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const parsedContactId = parseContactIdentifier(contactId);
       const parsedPhone = parsePhoneValue(phone);
       const label = normalizeOptionalText(options.label);
       const format: TableJsonFormat = parseAddOutputFormat(options.format);
+      const provider = createContactsProvider(globalOptions);
 
-      const updated = await addPhoneToContact(parsedContactId, parsedPhone, label);
+      const updated = await provider.addPhoneToContact(parsedContactId, parsedPhone, label);
 
       const result: AddPhoneResult = {
         contactId: updated.contactId,
@@ -42,7 +44,7 @@ export function registerAddPhoneCommand(program: Command): void {
       renderAddPhoneResult(result, format);
 
       if (globalOptions.verbose) {
-        console.error(`[mac-contacts] added phone to ${updated.contactId}`);
+        console.error(`[contacts] added phone to ${updated.contactId}`);
       }
     });
 }

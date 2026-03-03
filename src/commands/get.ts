@@ -2,8 +2,8 @@ import { Command } from "commander";
 import type { Contact, TableJsonFormat } from "../domain/types";
 import { writeJson } from "../output/json";
 import { writeContactsTable } from "../output/table";
-import { getContact } from "../providers/macos-address-book";
-import type { GlobalOptions } from "./types";
+import { createContactsProvider } from "../providers/factory";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 
 interface GetOptions {
   format: string;
@@ -15,14 +15,14 @@ export function registerGetCommand(program: Command): void {
     .description("Get a single contact by id")
     .option("--format <format>", "Output format: table or json", "table")
     .action(async (id: string, options: GetOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const parsedId = parseContactId(id);
       const format = parseGetOutputFormat(options.format);
+      const provider = createContactsProvider(globalOptions);
 
-      const result = await getContact({
+      const result = await provider.getContact({
         id: parsedId,
-        sourcePath: globalOptions.source,
-        verbose: globalOptions.verbose,
       });
 
       if (!result.contact) {
@@ -32,7 +32,7 @@ export function registerGetCommand(program: Command): void {
       renderGetResult(result.contact, format);
 
       if (globalOptions.verbose) {
-        console.error(`[mac-contacts] loaded contact ${parsedId} from ${result.sourcePath}`);
+        console.error(`[contacts] loaded contact ${parsedId} from ${result.sourcePath}`);
       }
     });
 }

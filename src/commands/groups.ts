@@ -2,8 +2,8 @@ import { Command } from "commander";
 import type { Group, TableJsonFormat } from "../domain/types";
 import { writeJson } from "../output/json";
 import { writeGroupsTable } from "../output/table";
-import { listGroups } from "../providers/macos-address-book";
-import type { GlobalOptions } from "./types";
+import { createContactsProvider } from "../providers/factory";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 
 interface GroupsOptions {
   format: string;
@@ -15,18 +15,17 @@ export function registerGroupsCommand(program: Command): void {
     .description("List contact groups")
     .option("--format <format>", "Output format: table or json", "table")
     .action(async (options: GroupsOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const format = parseGroupsOutputFormat(options.format);
+      const provider = createContactsProvider(globalOptions);
 
-      const result = await listGroups({
-        sourcePath: globalOptions.source,
-        verbose: globalOptions.verbose,
-      });
+      const result = await provider.listGroups();
 
       renderGroups(result.groups, format);
 
       if (globalOptions.verbose) {
-        console.error(`[mac-contacts] returned ${result.groups.length} group(s) from ${result.sourcePath}`);
+        console.error(`[contacts] returned ${result.groups.length} group(s) from ${result.sourcePath}`);
       }
     });
 }

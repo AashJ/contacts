@@ -1,6 +1,6 @@
 # DEV.md
 
-Developer notes for `mac-contacts`.
+Developer notes for `contacts`.
 
 ## Scope and constraints
 
@@ -14,10 +14,13 @@ Developer notes for `mac-contacts`.
 ```txt
 src/
   cli.ts
+  config/
+    store.ts                 # config load/save/path resolution
   commands/
     add.ts
     add-email.ts
     add-phone.ts
+    backend.ts
     export.ts
     get.ts
     groups.ts
@@ -25,6 +28,10 @@ src/
     search.ts
     types.ts
   providers/
+    factory.ts                # backend selection
+    provider.ts               # abstract provider contract
+    json-file-provider.ts     # JSON backend
+    mac-provider.ts           # mac backend adapter
     macos-address-book.ts      # read from sqlite contacts DB
     macos-contacts-writer.ts   # write via AppleScript / Contacts.app
   domain/
@@ -39,7 +46,7 @@ src/
 
 ## Data access strategy
 
-### Reads
+### Reads (mac backend)
 
 - Read local Contacts SQLite DB via `bun:sqlite`.
 - Discovery path candidates include:
@@ -48,7 +55,7 @@ src/
 - Pick most recent `AddressBook-v*.abcddb`.
 - Query person/group rows, then hydrate email/phone fields.
 
-### Writes
+### Writes (mac backend)
 
 - Use `osascript` with `Contacts.app` AppleScript API.
 - Do not write directly to SQLite for mutating operations.
@@ -57,11 +64,37 @@ src/
   - add email to contact
   - add phone to contact
 
+### JSON backend
+
+- Source is a user-provided JSON file (`--backend json --source <path>`).
+- Supports same command surface as mac backend for list/search/get/groups/add/add-email/add-phone/export.
+- Missing file is treated as empty store; first write creates it.
+
+## Config resolution
+
+- Config file default: `~/.config/contacts/config.json`
+- Override path via `--config <path>` or `CONTACTS_CONFIG`
+- Resolution precedence:
+  1. CLI flags (`--backend`, `--source`)
+  2. persisted config file
+  3. fallback backend: `mac`
+
+The `backend` command writes/reads persisted defaults:
+
+- `contacts backend set <backend> [--default-source <path>] [--clear-source]`
+- `contacts backend show`
+
 ## Type boundaries
 
 - CLI-facing models/types live in `src/domain/types.ts`.
 - Provider-internal row/query option shapes stay private to provider modules.
 - Shared command option types live in `src/commands/types.ts`.
+
+## Provider switching
+
+- `createContactsProvider()` in `src/providers/factory.ts` is the only backend selection point.
+- Commands should depend on the abstract `ContactsProvider` API (via factory), not backend-specific modules.
+- If a new backend is added, implement `ContactsProvider` and register it in the factory.
 
 ## Development commands
 
@@ -73,7 +106,7 @@ bun run src/cli.ts --help
 bun test
 
 # compile binary
-bun build src/cli.ts --compile --outfile bin/mac-contacts
+bun build src/cli.ts --compile --outfile bin/contacts
 ```
 
 ## Testing strategy

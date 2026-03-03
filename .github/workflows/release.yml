@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          OUT="mac-contacts-${TAG}-${{ matrix.label }}"
+          OUT="contacts-${TAG}-${{ matrix.label }}"
           bun build src/cli.ts --compile --outfile "${OUT}"
           tar -czf "${OUT}.tar.gz" "${OUT}"
 

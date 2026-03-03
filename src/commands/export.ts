@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import type { Contact, ContactField, ExportFileFormat } from "../domain/types";
-import { listContacts } from "../providers/macos-address-book";
-import type { GlobalOptions } from "./types";
+import { createContactsProvider } from "../providers/factory";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 
 interface ExportOptions {
   format: string;
@@ -15,13 +15,12 @@ export function registerExportCommand(program: Command): void {
     .requiredOption("--format <format>", "Export format: json or csv")
     .requiredOption("--out <path>", "Path to output file")
     .action(async (options: ExportOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const format = parseExportFormat(options.format);
+      const provider = createContactsProvider(globalOptions);
 
-      const result = await listContacts({
-        sourcePath: globalOptions.source,
-        verbose: globalOptions.verbose,
-      });
+      const result = await provider.listContacts({});
 
       if (format === "json") {
         await Bun.write(options.out, `${JSON.stringify(result.contacts, null, 2)}\n`);
@@ -31,7 +30,7 @@ export function registerExportCommand(program: Command): void {
 
       if (globalOptions.verbose) {
         console.error(
-          `[mac-contacts] exported ${result.contacts.length} contact(s) to ${options.out} from ${result.sourcePath}`,
+          `[contacts] exported ${result.contacts.length} contact(s) to ${options.out} from ${result.sourcePath}`,
         );
       }
     });

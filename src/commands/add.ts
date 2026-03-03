@@ -1,12 +1,8 @@
 import { Command } from "commander";
 import type { TableJsonFormat } from "../domain/types";
-import {
-  addEmailToContact,
-  addPhoneToContact,
-  createContact,
-} from "../providers/macos-contacts-writer";
+import { createContactsProvider } from "../providers/factory";
 import { writeJson } from "../output/json";
-import type { GlobalOptions } from "./types";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 
 interface AddOptions {
   first?: string;
@@ -30,7 +26,7 @@ interface AddContactResult {
 export function registerAddCommand(program: Command): void {
   program
     .command("add")
-    .description("Add a contact to macOS Contacts")
+    .description("Add a contact to the configured backend")
     .option("--first <name>", "First name")
     .option("--last <name>", "Last name")
     .option("--organization <name>", "Organization name")
@@ -41,15 +37,17 @@ export function registerAddCommand(program: Command): void {
     .option("--phone-label <label>", "Label to apply to all --phone values")
     .option("--format <format>", "Output format: table or json", "table")
     .action(async (options: AddOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const format = parseAddOutputFormat(options.format);
       const normalized = normalizeAddOptions(options);
+      const provider = createContactsProvider(globalOptions);
 
       if (!normalized.firstName && !normalized.lastName && !normalized.organization) {
         throw new Error("Provide at least one of: --first, --last, --organization.");
       }
 
-      const created = await createContact({
+      const created = await provider.createContact({
         firstName: normalized.firstName,
         lastName: normalized.lastName,
         organization: normalized.organization,
@@ -57,11 +55,11 @@ export function registerAddCommand(program: Command): void {
       });
 
       for (const email of normalized.emails) {
-        await addEmailToContact(created.contactId, email, normalized.emailLabel);
+        await provider.addEmailToContact(created.contactId, email, normalized.emailLabel);
       }
 
       for (const phone of normalized.phones) {
-        await addPhoneToContact(created.contactId, phone, normalized.phoneLabel);
+        await provider.addPhoneToContact(created.contactId, phone, normalized.phoneLabel);
       }
 
       const result: AddContactResult = {
@@ -75,7 +73,7 @@ export function registerAddCommand(program: Command): void {
 
       if (globalOptions.verbose) {
         console.error(
-          `[mac-contacts] added contact ${created.contactId} with ${normalized.emails.length} email(s) and ${normalized.phones.length} phone(s)`,
+          `[contacts] added contact ${created.contactId} with ${normalized.emails.length} email(s) and ${normalized.phones.length} phone(s)`,
         );
       }
     });

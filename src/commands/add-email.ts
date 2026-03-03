@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import type { TableJsonFormat } from "../domain/types";
-import { addEmailToContact } from "../providers/macos-contacts-writer";
+import { createContactsProvider } from "../providers/factory";
 import { writeJson } from "../output/json";
-import type { GlobalOptions } from "./types";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 import { parseAddOutputFormat, parseContactIdentifier, parseEmailValue } from "./add";
 
 interface AddEmailOptions {
@@ -24,13 +24,15 @@ export function registerAddEmailCommand(program: Command): void {
     .option("--label <label>", "Email label, for example: home/work")
     .option("--format <format>", "Output format: table or json", "table")
     .action(async (contactId: string, email: string, options: AddEmailOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const parsedContactId = parseContactIdentifier(contactId);
       const parsedEmail = parseEmailValue(email);
       const label = normalizeOptionalText(options.label);
       const format: TableJsonFormat = parseAddOutputFormat(options.format);
+      const provider = createContactsProvider(globalOptions);
 
-      const updated = await addEmailToContact(parsedContactId, parsedEmail, label);
+      const updated = await provider.addEmailToContact(parsedContactId, parsedEmail, label);
 
       const result: AddEmailResult = {
         contactId: updated.contactId,
@@ -42,7 +44,7 @@ export function registerAddEmailCommand(program: Command): void {
       renderAddEmailResult(result, format);
 
       if (globalOptions.verbose) {
-        console.error(`[mac-contacts] added email to ${updated.contactId}`);
+        console.error(`[contacts] added email to ${updated.contactId}`);
       }
     });
 }

@@ -1,12 +1,12 @@
 {
-  "name": "mac-contacts",
+  "name": "contacts",
   "module": "src/cli.ts",
   "type": "module",
   "private": true,
   "scripts": {
     "dev": "bun run src/cli.ts",
     "list": "bun run src/cli.ts list",
-    "build": "bun build src/cli.ts --compile --outfile bin/mac-contacts",
+    "build": "bun build src/cli.ts --compile --outfile bin/contacts",
     "test": "bun test"
   },
   "dependencies": {

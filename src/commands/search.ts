@@ -2,8 +2,8 @@ import { Command } from "commander";
 import type { Contact, SearchField, TableJsonFormat } from "../domain/types";
 import { writeJson } from "../output/json";
 import { writeContactsTable } from "../output/table";
-import { searchContacts } from "../providers/macos-address-book";
-import type { GlobalOptions } from "./types";
+import { createContactsProvider } from "../providers/factory";
+import { resolveGlobalOptions, type GlobalOptions } from "./types";
 
 interface SearchOptions {
   field?: string;
@@ -17,22 +17,22 @@ export function registerSearchCommand(program: Command): void {
     .option("--field <field>", "Search only one field: name, email, phone")
     .option("--format <format>", "Output format: table or json", "table")
     .action(async (query: string, options: SearchOptions, command: Command) => {
-      const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const rawGlobalOptions = command.optsWithGlobals<GlobalOptions>();
+      const globalOptions = await resolveGlobalOptions(rawGlobalOptions);
       const field = typeof options.field === "string" ? parseSearchField(options.field) : undefined;
       const format = parseSearchOutputFormat(options.format);
+      const provider = createContactsProvider(globalOptions);
 
-      const result = await searchContacts({
+      const result = await provider.searchContacts({
         query,
         field,
-        sourcePath: globalOptions.source,
-        verbose: globalOptions.verbose,
       });
 
       renderSearchResults(result.contacts, format);
 
       if (globalOptions.verbose) {
         console.error(
-          `[mac-contacts] matched ${result.contacts.length} contact(s) from ${result.sourcePath}`,
+          `[contacts] matched ${result.contacts.length} contact(s) from ${result.sourcePath}`,
         );
       }
     });
