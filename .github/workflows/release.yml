@@ -120,6 +120,7 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           overwrite_files: true
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           files: |
             artifacts/*.tar.gz
             artifacts/*.zip
