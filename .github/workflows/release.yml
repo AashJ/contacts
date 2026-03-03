@@ -35,11 +35,13 @@ jobs:
       matrix:
         include:
           - os: macos-13
-            arch: x64
             label: macos-x64
           - os: macos-14
-            arch: arm64
             label: macos-arm64
+          - os: ubuntu-latest
+            label: linux-x64
+          - os: windows-latest
+            label: windows-x64
 
     steps:
       - name: Checkout
@@ -51,7 +53,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Build binary
+      - name: Build binary (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -60,11 +63,29 @@ jobs:
           bun build src/cli.ts --compile --outfile "${OUT}"
           tar -czf "${OUT}.tar.gz" "${OUT}"
 
-      - name: Upload build artifact
+      - name: Build binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tag = "${env:GITHUB_REF_NAME}"
+          $out = "contacts-$tag-${{ matrix.label }}.exe"
+          bun build src/cli.ts --compile --outfile $out
+          Compress-Archive -Path $out -DestinationPath "$out.zip"
+
+      - name: Upload build artifact (Unix)
+        if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.label }}
           path: "*.tar.gz"
+          if-no-files-found: error
+
+      - name: Upload build artifact (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.label }}
+          path: "*.zip"
           if-no-files-found: error
 
   release:
@@ -86,7 +107,12 @@ jobs:
         run: |
           set -euo pipefail
           cd artifacts
-          sha256sum *.tar.gz > checksums.txt
+          mapfile -t ARCHIVES < <(find . -maxdepth 1 -type f \( -name "*.tar.gz" -o -name "*.zip" \) | sort)
+          if [ "${#ARCHIVES[@]}" -eq 0 ]; then
+            echo "No release archives found." >&2
+            exit 1
+          fi
+          sha256sum "${ARCHIVES[@]}" > checksums.txt
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
@@ -96,4 +122,5 @@ jobs:
           overwrite_files: true
           files: |
             artifacts/*.tar.gz
+            artifacts/*.zip
             artifacts/checksums.txt

@@ -1,5 +1,10 @@
+import { dirname, join } from "node:path";
 import { loadAppConfig } from "../config/store";
-import { parseBackend, type BackendType } from "../providers/factory";
+import {
+  defaultBackendForPlatform,
+  parseBackend,
+  type BackendType,
+} from "../providers/factory";
 
 export interface GlobalOptions {
   backend?: string;
@@ -19,8 +24,16 @@ export async function resolveGlobalOptions(
   globalOptions: GlobalOptions,
 ): Promise<ResolvedGlobalOptions> {
   const loadedConfig = await loadAppConfig(globalOptions.config);
-  const backend = parseBackend(globalOptions.backend ?? loadedConfig.values.backend);
-  const sourcePath = normalizeOptionalText(globalOptions.source ?? loadedConfig.values.source);
+  const configuredBackend = normalizeOptionalText(
+    globalOptions.backend ?? loadedConfig.values.backend,
+  );
+  const backend = configuredBackend ? parseBackend(configuredBackend) : defaultBackendForPlatform();
+  const configuredSourcePath = normalizeOptionalText(
+    globalOptions.source ?? loadedConfig.values.source,
+  );
+  const sourcePath =
+    configuredSourcePath ??
+    (backend === "json" ? defaultJsonSourcePath(loadedConfig.path) : undefined);
 
   return {
     backend,
@@ -28,6 +41,10 @@ export async function resolveGlobalOptions(
     sourcePath,
     verbose: globalOptions.verbose,
   };
+}
+
+export function defaultJsonSourcePath(configPath: string): string {
+  return join(dirname(configPath), "contacts.json");
 }
 
 function normalizeOptionalText(value: string | undefined): string | undefined {

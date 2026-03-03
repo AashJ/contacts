@@ -4,8 +4,10 @@ import { JsonFileContactsProvider } from "../../providers/json-file-provider";
 import { MacContactsProvider } from "../../providers/mac-provider";
 
 describe("provider factory", () => {
-  test("parseBackend defaults to mac", () => {
-    expect(parseBackend(undefined)).toBe("mac");
+  test("parseBackend defaults by platform", () => {
+    expect(parseBackend(undefined, "darwin")).toBe("mac");
+    expect(parseBackend(undefined, "linux")).toBe("json");
+    expect(parseBackend(undefined, "win32")).toBe("json");
   });
 
   test("parseBackend accepts supported values", () => {
@@ -20,9 +22,17 @@ describe("provider factory", () => {
   });
 
   test("factory returns backend-specific providers", () => {
-    expect(createContactsProvider({ backend: "mac" })).toBeInstanceOf(MacContactsProvider);
+    expect(createContactsProvider({ backend: "mac" }, "darwin")).toBeInstanceOf(
+      MacContactsProvider,
+    );
     expect(createContactsProvider({ backend: "json", sourcePath: "contacts.json" })).toBeInstanceOf(
       JsonFileContactsProvider,
+    );
+  });
+
+  test("factory rejects mac backend on non-macOS platforms", () => {
+    expect(() => createContactsProvider({ backend: "mac" }, "linux")).toThrow(
+      "only available on macOS",
     );
   });
 

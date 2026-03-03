@@ -3,7 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { updateAppConfig } from "../../config/store";
-import { resolveGlobalOptions } from "../../commands/types";
+import { defaultJsonSourcePath, resolveGlobalOptions } from "../../commands/types";
+import { defaultBackendForPlatform } from "../../providers/factory";
 
 const tempDirs: string[] = [];
 
@@ -17,13 +18,30 @@ afterEach(() => {
 });
 
 describe("global option resolution", () => {
-  test("defaults to mac backend when config is empty", async () => {
+  test("defaults to platform backend when config is empty", async () => {
     const configPath = createTempConfigPath();
     const resolved = await resolveGlobalOptions({ config: configPath });
+    const expectedBackend = defaultBackendForPlatform();
 
-    expect(resolved.backend).toBe("mac");
-    expect(resolved.sourcePath).toBeUndefined();
+    expect(resolved.backend).toBe(expectedBackend);
+    expect(resolved.sourcePath).toBe(
+      expectedBackend === "json" ? defaultJsonSourcePath(configPath) : undefined,
+    );
     expect(resolved.configPath).toBe(configPath);
+  });
+
+  test("defaults json source path when backend resolves to json without source", async () => {
+    const configPath = createTempConfigPath();
+    await updateAppConfig(
+      {
+        backend: "json",
+      },
+      configPath,
+    );
+
+    const resolved = await resolveGlobalOptions({ config: configPath });
+    expect(resolved.backend).toBe("json");
+    expect(resolved.sourcePath).toBe(defaultJsonSourcePath(configPath));
   });
 
   test("uses persisted backend and source from config", async () => {

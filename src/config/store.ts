@@ -37,13 +37,28 @@ export function resolveConfigPath(configPathOverride?: string): string {
     return resolve(join(xdgConfigHome, "contacts", DEFAULT_CONFIG_FILENAME));
   }
 
-  const home = normalizeOptionalText(process.env.HOME);
+  if (process.platform === "win32") {
+    const appData = normalizeOptionalText(process.env.APPDATA);
+    if (appData) {
+      return resolve(join(appData, "contacts", DEFAULT_CONFIG_FILENAME));
+    }
+
+    const userProfile = normalizeOptionalText(process.env.USERPROFILE);
+    if (userProfile) {
+      return resolve(
+        join(userProfile, "AppData", "Roaming", "contacts", DEFAULT_CONFIG_FILENAME),
+      );
+    }
+  }
+
+  const home =
+    normalizeOptionalText(process.env.HOME) ?? normalizeOptionalText(process.env.USERPROFILE);
   if (home) {
     return resolve(join(home, ".config", "contacts", DEFAULT_CONFIG_FILENAME));
   }
 
   throw new Error(
-    "Could not resolve config path. Set HOME, XDG_CONFIG_HOME, CONTACTS_CONFIG, or pass --config <path>.",
+    "Could not resolve config path. Set HOME, USERPROFILE, APPDATA, XDG_CONFIG_HOME, CONTACTS_CONFIG, or pass --config <path>.",
   );
 }
 

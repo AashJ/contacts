@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { loadAppConfig, updateAppConfig } from "../config/store";
 import type { TableJsonFormat } from "../domain/types";
-import { parseBackend } from "../providers/factory";
+import { defaultBackendForPlatform, parseBackend } from "../providers/factory";
 import { writeJson } from "../output/json";
 import type { GlobalOptions } from "./types";
 
@@ -34,6 +34,7 @@ export function registerBackendCommand(program: Command): void {
       const globalOptions = command.optsWithGlobals<GlobalOptions>();
       const format = parseBackendOutputFormat(options.format);
       const loaded = await loadAppConfig(globalOptions.config);
+      const defaultBackend = defaultBackendForPlatform();
 
       const view: BackendView = {
         backend: loaded.values.backend ?? null,
@@ -41,7 +42,7 @@ export function registerBackendCommand(program: Command): void {
         source: loaded.values.source ?? null,
       };
 
-      renderBackendView(view, format);
+      renderBackendView(view, format, defaultBackend);
     });
 
   backend
@@ -56,6 +57,7 @@ export function registerBackendCommand(program: Command): void {
       }
 
       const globalOptions = command.optsWithGlobals<GlobalOptions>();
+      const defaultBackend = defaultBackendForPlatform();
       const backend = parseBackend(backendRaw);
       const format = parseBackendOutputFormat(options.format);
 
@@ -79,7 +81,7 @@ export function registerBackendCommand(program: Command): void {
         source: saved.values.source ?? null,
       };
 
-      renderBackendView(view, format);
+      renderBackendView(view, format, defaultBackend);
     });
 }
 
@@ -102,13 +104,19 @@ function normalizeOptionalText(value: string | undefined): string | undefined {
   return normalized.length > 0 ? normalized : undefined;
 }
 
-function renderBackendView(view: BackendView, format: TableJsonFormat): void {
+function renderBackendView(
+  view: BackendView,
+  format: TableJsonFormat,
+  defaultBackend: "mac" | "json",
+): void {
   if (format === "json") {
     writeJson(view);
     return;
   }
 
-  process.stdout.write(`Backend: ${view.backend ?? "(not set; default is mac)"}\n`);
+  process.stdout.write(
+    `Backend: ${view.backend ?? `(not set; default is ${defaultBackend})`}\n`,
+  );
   process.stdout.write(`Source: ${view.source ?? "(not set)"}\n`);
   process.stdout.write(`Config: ${view.configPath}\n`);
 }

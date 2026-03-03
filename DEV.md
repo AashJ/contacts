@@ -5,8 +5,7 @@ Developer notes for `contacts`.
 ## Scope and constraints
 
 - Runtime/build tool: Bun only
-- External dependency budget: one CLI library only (`commander`)
-- No ORM, no extra data libraries, no extra runtime dependencies
+- CLI dependency: `commander`
 - Output target: compiled single binary via `bun build --compile`
 
 ## Architecture
@@ -15,7 +14,7 @@ Developer notes for `contacts`.
 src/
   cli.ts
   config/
-    store.ts                 # config load/save/path resolution
+    store.ts                  # config load/save/path resolution
   commands/
     add.ts
     add-email.ts
@@ -26,75 +25,87 @@ src/
     groups.ts
     list.ts
     search.ts
-    types.ts
+    types.ts                  # shared command/global option resolution
   providers/
-    factory.ts                # backend selection
+    factory.ts                # backend parsing + platform guard + provider selection
     provider.ts               # abstract provider contract
     json-file-provider.ts     # JSON backend
     mac-provider.ts           # mac backend adapter
-    macos-address-book.ts      # read from sqlite contacts DB
-    macos-contacts-writer.ts   # write via AppleScript / Contacts.app
+    macos-address-book.ts     # read from sqlite contacts DB
+    macos-contacts-writer.ts  # write via AppleScript / Contacts.app
   domain/
-    types.ts
+    types.ts                  # CLI/domain output contracts
   output/
     json.ts
     table.ts
   __tests__/
     commands/
+    config/
     providers/
 ```
 
+## Backend model
+
+- `ContactsProvider` (abstract class) defines the command-facing contract.
+- `createContactsProvider()` is the only backend selection point.
+- Current backends:
+  - `mac`: macOS-only
+  - `json`: cross-platform
+
+Platform defaults:
+
+- `darwin` -> `mac`
+- all other platforms -> `json`
+
+The factory enforces the macOS guard for `mac`.
+
 ## Data access strategy
 
-### Reads (mac backend)
+### Reads (`mac`)
 
 - Read local Contacts SQLite DB via `bun:sqlite`.
-- Discovery path candidates include:
-  - `~/Library/Application Support/AddressBook/Sources`
-  - container/group container fallback paths in provider
-- Pick most recent `AddressBook-v*.abcddb`.
-- Query person/group rows, then hydrate email/phone fields.
+- Source discovery checks common AddressBook source directories.
+- Chooses most recent `AddressBook-v*.abcddb`.
 
-### Writes (mac backend)
+### Writes (`mac`)
 
-- Use `osascript` with `Contacts.app` AppleScript API.
-- Do not write directly to SQLite for mutating operations.
-- Current write operations:
-  - create contact
-  - add email to contact
-  - add phone to contact
+- Use `osascript` / Contacts.app AppleScript API.
+- Do not mutate SQLite DB directly.
 
-### JSON backend
+### Reads/Writes (`json`)
 
-- Source is a user-provided JSON file (`--backend json --source <path>`).
-- Supports same command surface as mac backend for list/search/get/groups/add/add-email/add-phone/export.
-- Missing file is treated as empty store; first write creates it.
+- Source is a JSON file path.
+- Missing file is treated as empty store.
+- First write creates file + parent directory.
 
 ## Config resolution
 
-- Config file default: `~/.config/contacts/config.json`
-- Override path via `--config <path>` or `CONTACTS_CONFIG`
-- Resolution precedence:
-  1. CLI flags (`--backend`, `--source`)
-  2. persisted config file
-  3. fallback backend: `mac`
+Config file precedence:
 
-The `backend` command writes/reads persisted defaults:
+1. `--config <path>`
+2. `CONTACTS_CONFIG`
+3. `$XDG_CONFIG_HOME/contacts/config.json`
+4. Windows: `%APPDATA%\contacts\config.json`
+5. Windows fallback: `%USERPROFILE%\AppData\Roaming\contacts\config.json`
+6. `$HOME/.config/contacts/config.json` (or `%USERPROFILE%/.config/...` fallback)
 
-- `contacts backend set <backend> [--default-source <path>] [--clear-source]`
+Runtime option precedence:
+
+1. CLI flags (`--backend`, `--source`)
+2. persisted config (`backend`, `source`)
+3. platform default backend
+4. if backend is `json` and source still unset: `<config-dir>/contacts.json`
+
+Backend persistence commands:
+
 - `contacts backend show`
+- `contacts backend set <backend> [--default-source <path>] [--clear-source]`
 
 ## Type boundaries
 
-- CLI-facing models/types live in `src/domain/types.ts`.
-- Provider-internal row/query option shapes stay private to provider modules.
-- Shared command option types live in `src/commands/types.ts`.
-
-## Provider switching
-
-- `createContactsProvider()` in `src/providers/factory.ts` is the only backend selection point.
-- Commands should depend on the abstract `ContactsProvider` API (via factory), not backend-specific modules.
-- If a new backend is added, implement `ContactsProvider` and register it in the factory.
+- Stable CLI/domain output types: `src/domain/types.ts`
+- Provider-specific query/input types: `src/providers/provider.ts`
+- Command parsing/global option types: `src/commands/types.ts`
 
 ## Development commands
 
@@ -111,42 +122,49 @@ bun build src/cli.ts --compile --outfile bin/contacts
 
 ## Testing strategy
 
-- Unit tests for parser/format logic under `src/__tests__/commands`.
-- Provider tests with fixture SQLite DB under `src/__tests__/providers`.
-- Avoid tests that mutate a real user Contacts DB.
+- Unit tests in `src/__tests__/...`.
+- Provider tests avoid touching real Contacts DB.
+- Cross-platform behavior is validated in CI on macOS/Linux/Windows.
 
-## Release process
+## GitHub workflows
 
-Workflow file: `.github/workflows/release.yml`
+### CI
+
+File: `.github/workflows/ci.yml`
+
+- Triggers: PRs and pushes to `main`
+- Matrix: `ubuntu-latest`, `macos-latest`, `windows-latest`
+- Runs: install, test, compile sanity build
+
+### Release
+
+File: `.github/workflows/release.yml`
 
 Trigger:
 
-- push a tag matching `v*` (example: `v0.1.0`)
+- push tag matching `v*` (example: `v0.1.0`)
 
-Pipeline behavior:
+Pipeline:
 
-1. `verify` job on `ubuntu-latest`
-   - `bun install --frozen-lockfile`
-   - `bun test`
-2. `build` matrix on macOS
-   - `macos-13` -> `macos-x64`
-   - `macos-14` -> `macos-arm64`
-   - compiles binary with Bun
-   - packages each binary as `.tar.gz`
-3. `release` job
+1. `verify` on Ubuntu: install + tests
+2. `build` matrix:
+   - `macos-13` -> `contacts-<tag>-macos-x64.tar.gz`
+   - `macos-14` -> `contacts-<tag>-macos-arm64.tar.gz`
+   - `ubuntu-latest` -> `contacts-<tag>-linux-x64.tar.gz`
+   - `windows-latest` -> `contacts-<tag>-windows-x64.exe.zip`
+3. `release` job:
    - downloads artifacts
    - generates `checksums.txt` (SHA-256)
-   - creates/updates GitHub Release for the tag
-   - uploads both tarballs + checksum file
+   - publishes GitHub release assets
 
 Pre-release behavior:
 
-- tags containing `-` (for example `v0.2.0-rc.1`) are published as GitHub pre-releases.
+- Tags containing `-` (for example `v0.2.0-rc.1`) publish as pre-releases.
 
-### Local release flow
+## Local release flow
 
 ```bash
-# make sure main is green and pushed
+# ensure main is green and pushed
 git tag v0.1.0
 git push origin v0.1.0
 ```

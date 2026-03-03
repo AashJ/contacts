@@ -1,28 +1,59 @@
 # contacts
 
-CLI for macOS Contacts with read and write commands.
+Cross-platform CLI for reading and writing contacts with swappable backends.
+Supports macOS, Linux, and Windows.
 
 Developer docs live in [DEV.md](./DEV.md).
 
+## Cross-platform and backends
+
+Supported backends:
+
+- `mac`: macOS only (reads Contacts DB, writes via Contacts.app AppleScript)
+- `json`: macOS, Linux, Windows (reads/writes a JSON file)
+
+Platform matrix:
+
+| Platform | Backends | Default backend |
+| --- | --- | --- |
+| macOS | `mac`, `json` | `mac` |
+| Linux | `json` | `json` |
+| Windows | `json` | `json` |
+
+Default backend by platform:
+
+- macOS: `mac`
+- Linux/Windows: `json`
+
 ## Requirements
 
-- macOS
 - Bun
-- Contacts permission for your terminal app
+- For `mac` backend only: Contacts permissions for your terminal app and Bun
 
-## Quick start
+## Install
+
+### Run from source
 
 ```bash
 bun install
 bun run src/cli.ts --help
 ```
 
-Build a standalone binary:
+### Build local binary
 
 ```bash
 bun build src/cli.ts --compile --outfile bin/contacts
 ./bin/contacts --help
 ```
+
+### GitHub Release binaries
+
+Releases publish platform archives:
+
+- `contacts-<tag>-macos-x64.tar.gz`
+- `contacts-<tag>-macos-arm64.tar.gz`
+- `contacts-<tag>-linux-x64.tar.gz`
+- `contacts-<tag>-windows-x64.exe.zip`
 
 ## Commands
 
@@ -39,46 +70,47 @@ bun build src/cli.ts --compile --outfile bin/contacts
 
 Global flags:
 
-- `--backend <backend>`: `mac` or `json` (defaults to saved config, else `mac`)
-- `--config <path>`: config file path (default `~/.config/contacts/config.json`)
-- `--source <path>`: backend source path
-  - `mac` backend: optional path to `AddressBook-v*.abcddb`
-  - `json` backend: required path to JSON file
-- `--verbose`: print debug info
+- `--backend <backend>`: `mac` or `json`
+- `--config <path>`: config file path override
+- `--source <path>`: backend source path override
+- `--verbose`: debug logging
 
-## Persisted backend defaults
+## Config and backend persistence
 
-Set backend once and reuse it without passing flags every time:
+Default config path:
+
+- macOS/Linux: `~/.config/contacts/config.json` (or `$XDG_CONFIG_HOME/contacts/config.json`)
+- Windows: `%APPDATA%\contacts\config.json`
+
+Override config location with `--config <path>` or `CONTACTS_CONFIG`.
+
+Set backend once and reuse:
 
 ```bash
-# save defaults
 contacts backend set json --default-source ~/contacts.json
-
-# inspect saved defaults
 contacts backend show
 ```
 
 Notes:
 
-- Command-line flags (`--backend`, `--source`) override saved config.
-- To remove saved source path:
-
-```bash
-contacts backend set mac --clear-source
-```
+- CLI flags override persisted config.
+- If backend resolves to `json` and no source is set, the CLI uses `<config-dir>/contacts.json`.
+- Missing JSON source file is treated as empty and is created on first write.
 
 ## Backends
 
-### mac backend (default)
+### mac backend
 
-- Reads via local Contacts SQLite DB.
-- Writes (`add`, `add-email`, `add-phone`) via AppleScript/Contacts.app.
-- `--source` is optional.
+- Available only on macOS.
+- Reads from local Contacts SQLite DB.
+- Writes (`add`, `add-email`, `add-phone`) via Contacts.app AppleScript.
+- Optional `--source` can point to a specific `AddressBook-v*.abcddb`.
 
 ### json backend
 
-- Reads and writes from a JSON file you provide via `--source`.
-- Useful for testing/demo/custom data without touching macOS Contacts.
+- Available on macOS/Linux/Windows.
+- Reads and writes to one JSON file.
+- `--source` can point to a custom file; otherwise defaults to `<config-dir>/contacts.json`.
 
 Example:
 
@@ -103,9 +135,7 @@ JSON file shape:
       "phones": [{ "value": "+1 555 0100", "label": "mobile", "isPrimary": true }]
     }
   ],
-  "groups": [
-    { "id": 1, "uniqueId": "group-1:JSONGroup", "name": "Friends" }
-  ]
+  "groups": [{ "id": 1, "uniqueId": "group-1:JSONGroup", "name": "Friends" }]
 }
 ```
 
@@ -134,14 +164,14 @@ contacts export --format csv --out ./contacts.csv
 # create a contact
 contacts add --first Jane --last Doe --email jane@example.com --phone "+1 555 0100"
 
-# append to an existing contact (contactId should be the Contacts unique id, usually ending in :ABPerson)
+# append to an existing contact
 contacts add-email "A1B2C3D4-E5F6-7890-1234-56789ABCDEF0:ABPerson" jane@work.test --label work
 contacts add-phone "A1B2C3D4-E5F6-7890-1234-56789ABCDEF0:ABPerson" "+1 555 0199" --label mobile
 
-# use the json backend
+# switch backend for one command
 contacts --backend json --source ./contacts.json list
 
-# persist json backend defaults
+# persist backend/source defaults
 contacts backend set json --default-source ./contacts.json
 contacts list
 ```
@@ -155,14 +185,14 @@ For `list`, `--format auto` behaves as:
 
 ## Troubleshooting
 
-If the CLI cannot read/write Contacts data, macOS permissions are usually the cause.
+mac backend permission issues:
 
 1. Open `System Settings > Privacy & Security`.
 2. Add your terminal app and Bun to `Full Disk Access`.
-3. Ensure the same app also has `Contacts` permission.
+3. Ensure the same app has `Contacts` permission.
 4. Re-run the command.
 
-Optional: pass a DB path directly for mac read commands:
+Optional mac DB path override:
 
 ```bash
 contacts list --source "$HOME/Library/Application Support/AddressBook/Sources/<SOURCE-ID>/AddressBook-v22.abcddb"
