@@ -148,7 +148,7 @@ Pipeline:
 
 1. `verify` on Ubuntu: install + tests
 2. `build` matrix:
-   - `macos-13` -> `contacts-<tag>-macos-x64.tar.gz`
+   - `macos-15-intel` -> `contacts-<tag>-macos-x64.tar.gz`
    - `macos-14` -> `contacts-<tag>-macos-arm64.tar.gz`
    - `ubuntu-latest` -> `contacts-<tag>-linux-x64.tar.gz`
    - `windows-latest` -> `contacts-<tag>-windows-x64.exe.zip`
